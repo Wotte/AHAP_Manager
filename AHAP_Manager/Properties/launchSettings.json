@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AHAP_Manager": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}
