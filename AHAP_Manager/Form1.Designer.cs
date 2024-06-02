@@ -63,6 +63,8 @@
             tabPage1 = new TabPage();
             panel1 = new Panel();
             panel17 = new Panel();
+            label_Info_GitRequestTime = new Label();
+            label_Info_GitRequestRemaining = new Label();
             textBox1 = new TextBox();
             label40 = new Label();
             label41 = new Label();
@@ -544,28 +546,54 @@
             // 
             panel17.BackColor = Color.MediumPurple;
             panel17.BorderStyle = BorderStyle.FixedSingle;
+            panel17.Controls.Add(label_Info_GitRequestTime);
+            panel17.Controls.Add(label_Info_GitRequestRemaining);
             panel17.Controls.Add(textBox1);
             panel17.Controls.Add(label40);
             panel17.Controls.Add(label41);
             panel17.Location = new Point(452, 199);
             panel17.Margin = new Padding(0);
             panel17.Name = "panel17";
-            panel17.Size = new Size(488, 257);
+            panel17.Size = new Size(488, 386);
             panel17.TabIndex = 27;
             panel17.Visible = false;
+            // 
+            // label_Info_GitRequestTime
+            // 
+            label_Info_GitRequestTime.AutoSize = true;
+            label_Info_GitRequestTime.BackColor = Color.Transparent;
+            label_Info_GitRequestTime.Font = new Font("Salina", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            label_Info_GitRequestTime.Location = new Point(223, 6);
+            label_Info_GitRequestTime.Name = "label_Info_GitRequestTime";
+            label_Info_GitRequestTime.Size = new Size(67, 20);
+            label_Info_GitRequestTime.TabIndex = 23;
+            label_Info_GitRequestTime.Text = "Reset at ";
+            label_Info_GitRequestTime.TextAlign = ContentAlignment.TopCenter;
+            // 
+            // label_Info_GitRequestRemaining
+            // 
+            label_Info_GitRequestRemaining.AutoSize = true;
+            label_Info_GitRequestRemaining.BackColor = Color.Transparent;
+            label_Info_GitRequestRemaining.Font = new Font("Salina", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            label_Info_GitRequestRemaining.Location = new Point(103, 6);
+            label_Info_GitRequestRemaining.Name = "label_Info_GitRequestRemaining";
+            label_Info_GitRequestRemaining.Size = new Size(73, 20);
+            label_Info_GitRequestRemaining.TabIndex = 22;
+            label_Info_GitRequestRemaining.Text = "Git Req :";
+            label_Info_GitRequestRemaining.TextAlign = ContentAlignment.TopCenter;
             // 
             // textBox1
             // 
             textBox1.BackColor = Color.MediumPurple;
             textBox1.BorderStyle = BorderStyle.None;
             textBox1.Font = new Font("Salina", 10.7999992F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            textBox1.Location = new Point(55, 42);
+            textBox1.Location = new Point(55, 82);
             textBox1.Multiline = true;
             textBox1.Name = "textBox1";
             textBox1.ReadOnly = true;
             textBox1.RightToLeft = RightToLeft.No;
             textBox1.ScrollBars = ScrollBars.Vertical;
-            textBox1.Size = new Size(403, 199);
+            textBox1.Size = new Size(403, 291);
             textBox1.TabIndex = 21;
             textBox1.TextAlign = HorizontalAlignment.Center;
             // 
@@ -574,11 +602,11 @@
             label40.AutoSize = true;
             label40.BackColor = Color.Transparent;
             label40.Font = new Font("Salina", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            label40.Location = new Point(21, 19);
+            label40.Location = new Point(149, 58);
             label40.Name = "label40";
-            label40.Size = new Size(98, 20);
+            label40.Size = new Size(216, 20);
             label40.TabIndex = 13;
-            label40.Text = "Stored Data :";
+            label40.Text = "Version => NextObjectNumber";
             label40.TextAlign = ContentAlignment.TopCenter;
             // 
             // label41
@@ -1393,7 +1421,7 @@
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "Form1";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Transitions_Setup";
+            Text = "AHAP Manager";
             FormClosing += Form1_FormClosing;
             Load += Form1_Load_1;
             ((System.ComponentModel.ISupportInitialize)pictureBoxOverview).EndInit();
@@ -1543,6 +1571,8 @@
         private Label label41;
         private CheckBox checkBox2;
         private TextBox textBox1;
+        private Label label_Info_GitRequestRemaining;
+        private Label label_Info_GitRequestTime;
     }
 }
 

@@ -1,5 +1,6 @@
 ﻿using BrightIdeasSoftware;
 using Octokit;
+using Octokit.Internal;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
@@ -14,6 +15,7 @@ namespace AHAP_Manager
         string trtExtension = ".trt";
         string tgaExtension = ".tga";
 
+        GitHubClient github = new GitHubClient(new ProductHeaderValue("AHAP_Manager"));
 
         //bool isAllNONUpdated;
         string live_VersionNumber = "";
@@ -209,37 +211,52 @@ namespace AHAP_Manager
                 string nextObjectID_url = "https://raw.githubusercontent.com/jasonrohrer/AnotherPlanetData/master/objects/nextObjectNumber.txt";
                 string versionNumber = await httpClient.GetStringAsync(versionNumber_url);
                 string nextObjectID_Live = await httpClient.GetStringAsync(nextObjectID_url);
-                return new string[] { versionNumber, nextObjectID_Live };
+                return [versionNumber, nextObjectID_Live];
             }
-            catch
+            catch (HttpRequestException ex)
             {
-                var confirmIDs = MessageBox.Show("Problem getting infomations through http request, check internet connection and retry. (if you skip => no 'Fast Export' option available)", "HTTP request problem", MessageBoxButtons.RetryCancel);
+                var confirmIDs = MessageBox.Show("Problem getting infomations through http request, Check internet connection. Error message : "+ex.Message , "HTTP request problem", MessageBoxButtons.RetryCancel);
                 if (confirmIDs == DialogResult.Retry)
                 {
                     await FindInfoLiveAsync();
                 }
-                return null;
+                return ["?","?"];
             }
-
+            catch (TaskCanceledException ex)
+            {
+                var confirmIDs = MessageBox.Show("Problem getting infomations through http request, Error message : " + ex.Message, "Task Canceled", MessageBoxButtons.RetryCancel);
+                if (confirmIDs == DialogResult.Retry)
+                {
+                    await FindInfoLiveAsync();
+                }
+                return ["?", "?"];
+            }
+            catch (Exception ex)
+            {
+                var confirmIDs = MessageBox.Show("Problem getting infomations through http request : "+ex.Message, "HTTP request problem", MessageBoxButtons.RetryCancel);
+                if (confirmIDs == DialogResult.Retry)
+                {
+                    await FindInfoLiveAsync();
+                }
+                return ["?", "?"];
+            }
         }
         private async void GetLiveGameInformation()
         {
 
             string[] info = await FindInfoLiveAsync();
-            if (info == null || info.Length < 2) return;
-            live_VersionNumber = info[0];
-            live_NextObjectID = info[1];
-            // We set text without check if they can be parse ( so we can debug easily)
+            live_VersionNumber = info[0]; live_NextObjectID = info[1];
+            // We set text without check if they can be parse ( so we can directly see )
             labelLiveVersion.Text = live_VersionNumber;
             labelLiveNextObjectID.Text = live_NextObjectID;
 
             // test if that a number
             bool isVersion_Valid = int.TryParse(info[0], out live_verNum);
             bool isLiveNON_Valid = int.TryParse(info[1], out live_NON);
-            if (isLiveNON_Valid) e_checkBox_FastLoad.Enabled = true;
-            if (isLiveNON_Valid && isVersion_Valid) button_SearchLiveInfo.Visible = false;
+            e_checkBox_FastLoad.Enabled = isLiveNON_Valid;
+            button_SearchLiveInfo.Visible = isLiveNON_Valid && isVersion_Valid;
 
-            if (isVersion_Valid) // Dont search old NON if we dont have valid version (int)
+            if (isVersion_Valid) // search old NON only if valid version (int)
                 RequestAllNON();
         }
         public async Task<string> getOne_NextObjNum(int version)
@@ -252,29 +269,30 @@ namespace AHAP_Manager
                 //string versionNumber_name = "dataVersionNumber.txt";
                 string nextObjectNumber_name = "objects/nextObjectNumber.txt";
 
-                var github = new GitHubClient(new ProductHeaderValue("SearchOldNextObjectNumber"));
-                //If we dont have tags update
+                //var github = new GitHubClient(new ProductHeaderValue("AHAP_Manager"));
+                //If we dont have tags at the right count => update tags
                 if (Settings.Default.list_RepoTagName.Count < version)
                 {
+                    
                     var tags = await github.Repository.GetAllTags(username, repo);
                     Settings.Default.list_RepoTagName.Clear();
                     for (int i = tags.Count - 1; i >= 0; i--) { Settings.Default.list_RepoTagName.Add(tags[i].Name); }// the Tags saved need update
                     Settings.Default.Save();
-                    Debug.WriteLine("OK version-1 = " + (version - 1) + " / " + Settings.Default.list_RepoTagName[version - 1]);
+                    //Debug.WriteLine("OK version-1 = " + (version - 1) + " / " + Settings.Default.list_RepoTagName[version - 1]);
                     var tmpNON = await github.Repository.Content.GetRawContentByRef(username, repo, nextObjectNumber_name, Settings.Default.list_RepoTagName[version - 1]);
                     return Encoding.Default.GetString(tmpNON);
                 }
                 else
                 {
-                    Debug.WriteLine("version-1 = " + (version - 1) + " / " + Settings.Default.list_RepoTagName[version - 1]);
+                    //Debug.WriteLine("version-1 = " + (version - 1) + " / " + Settings.Default.list_RepoTagName[version - 1]);
                     var tmpNON = await github.Repository.Content.GetRawContentByRef(username, repo, nextObjectNumber_name, Settings.Default.list_RepoTagName[version - 1]);
                     return Encoding.Default.GetString(tmpNON);
                 }
             }
             catch (RateLimitExceededException eLimit)
             {
-                var confirmIDs = MessageBox.Show("Git Limit acess (" + eLimit.Limit + " request per hour) \n retry in one hour \n\n" +
-                    " (skip = don't show wrong IDs reference)"
+                var confirmIDs = MessageBox.Show("Git Limit acess (" + eLimit.Limit + " request per hour) \n Next request available at "+eLimit.Reset.LocalDateTime+ " \n\n" +
+                    " (you can check 'Info' to see if your version is setup)"
                     , "Git request Limit", MessageBoxButtons.OK);
                 return "";
             }
@@ -284,7 +302,7 @@ namespace AHAP_Manager
                 if (maxRetry > 0)
                 {
                     var probDialog = MessageBox.Show("Problem when getting old version (" + version + ") of 'nextObjectNumber.txt' from github \n" +
-                        "check internet connection and retry (" + maxRetry + ") \n\n (skip = don't show wrong IDs reference)"
+                        "check internet connection and retry (" + maxRetry + ") (git request remaining : "+github.GetLastApiInfo().RateLimit.Remaining+")"
                             , "Git request problem", MessageBoxButtons.RetryCancel);
                     if (probDialog == DialogResult.Retry)
                     {
@@ -293,7 +311,9 @@ namespace AHAP_Manager
                 }
                 else
                 {
-                    var probDialog = MessageBox.Show("Still Problem when getting old version of 'nextObjectNumber.txt' from github \nNo more retry \n\n (skip = don't show wrong IDs reference)"
+                    var probDialog = MessageBox.Show("Still Problem when getting old version of 'nextObjectNumber.txt' from github" +
+                        "\n No more retry " +
+                        "\n During export, you may don't be able to see if a transition have problem"
                             , "Git request problem", MessageBoxButtons.OK);
                 }
                 return "";
@@ -351,18 +371,6 @@ namespace AHAP_Manager
             }
             e_UpdateAllDecorations_Transition();
             #endregion
-        }
-        private void GetTransitionsFast(ref List<string> listPath, ref List<string> IDsSelected)
-        {
-            foreach (var file in Directory.GetFiles(e_TransitionPath))
-            {
-                //string fileName = Path.GetFileName(trans_list[i]);
-                if (HasID(file, IDsSelected))
-                {
-                    e_file_copy_number++;
-                    listPath.Add(file);
-                }
-            }
         }
         #region Buttons
         private void e_button_Browser_Click(object sender, EventArgs e)
@@ -525,14 +533,23 @@ namespace AHAP_Manager
                 selectedTraListIDs.Add(o.id.ToString());
             }
 
-            if (fastLoaded)
+            if (fastLoaded) // All transitions 
             {
-                GetTransitionsFast(ref selectedTraListPath, ref selectedTraListIDs);
+                foreach (var file in Directory.GetFiles(e_TransitionPath))
+                {
+                    //string fileName = Path.GetFileName(trans_list[i]);
+                    if (HasID(file, selectedTraListIDs))
+                    {
+                        e_file_copy_number++;
+                        selectedTraListPath.Add(file);
+                    }
+                }
             }
-            else
+            else // Only selected one
             {
                 foreach (Transition t in e_TransListView.SelectedObjects)
                 {
+                    e_file_copy_number++;
                     selectedTraListPath.Add(t.filePath);
                 }
             }
@@ -853,7 +870,7 @@ namespace AHAP_Manager
 
         #endregion
 
-        #region Import
+      #region Import
         private bool OpenFile(string filePath, string transitionFolderPath)
         {
             i_listOldIDs.Clear();
@@ -1012,7 +1029,7 @@ namespace AHAP_Manager
             }
             return false;
         }
-        #region Buttons
+       #region Buttons
         private void i_button_Browser_Click(object sender, EventArgs e)
         {
             i_button_Import.Enabled = false;
@@ -1200,7 +1217,8 @@ namespace AHAP_Manager
                 + i_PassedTr_num + " passed";
         }
         #endregion
-        #region Checkbox
+
+       #region Checkbox
         private void i_checkBox_DeleteOldFiles_CheckedChanged(object sender, EventArgs e)
         {
             //Save in datasettings *NM
@@ -1210,6 +1228,7 @@ namespace AHAP_Manager
             if (!i_checkBox_TransOverview.Checked) i_panel_TransOverview.Visible = false;
         }
         #endregion
+
         public void i_UpdateAllDecorations_Transition(CustomTransitionsListView list)
         {
             for (int i = 0; i < list.GetItemCount(); i++)
@@ -2138,7 +2157,7 @@ namespace AHAP_Manager
 
             private bool WillCauseProb(int id, int oldNextObjNum, CustomObjectListView listObj)
             {
-                if (id > oldNextObjNum) // if its not ID that already exist in main
+                if (id >= oldNextObjNum) // if its not ID that already exist in main
                 {
                     bool find = false;
                     foreach (ObjectSettings obj in listObj.SelectedObjects)
@@ -2930,18 +2949,19 @@ namespace AHAP_Manager
         {
             if (checkBox2.Checked)
             {
+                label_Info_GitRequestRemaining.Text = "Git Req : " + github.GetLastApiInfo()?.RateLimit.Remaining ?? "?";
+                label_Info_GitRequestTime.Text = "Reset at " + github.GetLastApiInfo()?.RateLimit.Reset.LocalDateTime ?? "?";
                 string text = "";
-                if (Settings.Default.list_RepoTagName.Count != Settings.Default.list_Old_NextObjNum.Count)
+                int maxLength = Math.Max(Settings.Default.list_RepoTagName.Count, Settings.Default.list_Old_NextObjNum.Count);
+
+                for (int i = 0; i < maxLength; i++)
                 {
-                    text = "list_RepoTagName & list_Old_NextObjNum have dif. count";
+                    string tagName = i < Settings.Default.list_RepoTagName.Count ? Settings.Default.list_RepoTagName[i] : "";
+                    string nextObjNum = i < Settings.Default.list_Old_NextObjNum.Count ? Settings.Default.list_Old_NextObjNum[i] : "";
+
+                    text += $"{tagName} => {nextObjNum}\r\n";
                 }
-                else
-                {
-                    for (int i = 0; i < Settings.Default.list_RepoTagName.Count; i++)
-                    {
-                        text += Settings.Default.list_RepoTagName[i] + " => " + Settings.Default.list_Old_NextObjNum[i] + "\r\n";
-                    }
-                }
+
                 textBox1.Text = text;
                 panel17.Visible = true;
             }
