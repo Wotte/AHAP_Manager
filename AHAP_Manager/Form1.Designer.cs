@@ -108,6 +108,7 @@
             e_labelNbTrExported = new Label();
             label23 = new Label();
             panel2 = new Panel();
+            e_button_OpenFolder = new Button();
             e_checkBox_AutoSelect = new CheckBox();
             e_checkBox_FastLoad = new CheckBox();
             tabPage2 = new TabPage();
@@ -521,7 +522,6 @@
             // panel1
             // 
             panel1.BackColor = Color.CornflowerBlue;
-            panel1.Controls.Add(panel17);
             panel1.Controls.Add(e_panel_TransOverview);
             panel1.Controls.Add(panel3);
             panel1.Controls.Add(panel_exp);
@@ -551,10 +551,10 @@
             panel17.Controls.Add(textBox1);
             panel17.Controls.Add(label40);
             panel17.Controls.Add(label41);
-            panel17.Location = new Point(452, 199);
+            panel17.Location = new Point(440, 247);
             panel17.Margin = new Padding(0);
             panel17.Name = "panel17";
-            panel17.Size = new Size(488, 386);
+            panel17.Size = new Size(488, 388);
             panel17.TabIndex = 27;
             panel17.Visible = false;
             // 
@@ -1091,6 +1091,7 @@
             // 
             // panel2
             // 
+            panel2.Controls.Add(e_button_OpenFolder);
             panel2.Controls.Add(e_checkBox_AutoSelect);
             panel2.Controls.Add(e_checkBox_FastLoad);
             panel2.Controls.Add(textBoxEditorGameFolderPath_export);
@@ -1105,6 +1106,18 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(533, 138);
             panel2.TabIndex = 22;
+            // 
+            // e_button_OpenFolder
+            // 
+            e_button_OpenFolder.Enabled = false;
+            e_button_OpenFolder.Font = new Font("Salina", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            e_button_OpenFolder.Location = new Point(455, 100);
+            e_button_OpenFolder.Name = "e_button_OpenFolder";
+            e_button_OpenFolder.Size = new Size(75, 29);
+            e_button_OpenFolder.TabIndex = 28;
+            e_button_OpenFolder.Text = "Open";
+            e_button_OpenFolder.UseVisualStyleBackColor = true;
+            e_button_OpenFolder.Click += e_button_OpenFolder_Click;
             // 
             // e_checkBox_AutoSelect
             // 
@@ -1417,6 +1430,7 @@
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1348, 957);
+            Controls.Add(panel17);
             Controls.Add(splitContainer2);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "Form1";
@@ -1573,6 +1587,7 @@
         private TextBox textBox1;
         private Label label_Info_GitRequestRemaining;
         private Label label_Info_GitRequestTime;
+        private Button e_button_OpenFolder;
     }
 }
 

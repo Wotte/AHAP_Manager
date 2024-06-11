@@ -6,7 +6,13 @@ using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Text;
+using System.Drawing;
 using Label = System.Windows.Forms.Label;
+using System.Drawing.Imaging;
+using static AHAP_Manager.Form1;
+using System.Linq;
+using System.Text.RegularExpressions;
+using static System.Windows.Forms.LinkLabel;
 
 namespace AHAP_Manager
 {
@@ -65,10 +71,12 @@ namespace AHAP_Manager
         bool e_LoadSucess = false;
         bool fastLoaded = false;
         int e_file_copy_number;
+        int e_catRef_copy_number;
         //int e_file_skip_number;
         string e_oxzFilePath = "";
         string e_oxzFileName = "";
         string e_TransitionPath = "";
+        string e_CategoriesPath = "";
         string e_ExportPath = "";
         string e_ObjectPath = "";
         string e_SpritesPath = "";
@@ -96,7 +104,7 @@ namespace AHAP_Manager
         int i_replaceTr_num;
         int i_PassedTr_num;
         string i_TransitionPath = "";
-        //string import_ExportPath = "";
+        string i_CategoriesPath = "";
         string i_ObjectFolderPath = "";
         string i_SprFolderPath = "";
         string i_TransitionsFolderPath = "";
@@ -104,6 +112,7 @@ namespace AHAP_Manager
         string i_Import_ReplaceFolderPath = "";
         List<int> i_listNewIDs = new List<int>();
         List<int> i_listOldIDs = new List<int>();
+        List<Categories> i_listCategoriesReference = new List<Categories>();
         List<Transition> i_transList = new List<Transition>();
         List<Transition> i_transList_IdMiss = new List<Transition>();
         List<Transition> i_transList_AlreadyExist = new List<Transition>();
@@ -119,6 +128,8 @@ namespace AHAP_Manager
         RowBorderDecoration rbd_TransitionError; // when transition have any of his IDs > highestID or < lowestID an > 
         RowBorderDecoration rbd_Selected;
         private int e_NbTransition_Error;
+
+        
 
         public Form1()
         {
@@ -185,21 +196,19 @@ namespace AHAP_Manager
             i_TransListView.MouseLeave += I_TransListView_MouseLeave;
             e_TransListView.MouseLeave += E_TransListView_MouseLeave;
         }
-
-        private void E_TransListView_MouseLeave(object? sender, EventArgs e)
-        {
-            e_panel_TransOverview.Visible = false;
-        }
-
-        private void I_TransListView_MouseLeave(object? sender, EventArgs e)
-        {
-            i_panel_TransOverview.Visible = false;
-        }
-
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             Settings.Default.Save();
         }
+        private void E_TransListView_MouseLeave(object? sender, EventArgs e)
+        {
+            e_panel_TransOverview.Visible = false;
+        }
+        private void I_TransListView_MouseLeave(object? sender, EventArgs e)
+        {
+            i_panel_TransOverview.Visible = false;
+        }
+        
 
         static async Task<string[]> FindInfoLiveAsync()
         {
@@ -215,12 +224,12 @@ namespace AHAP_Manager
             }
             catch (HttpRequestException ex)
             {
-                var confirmIDs = MessageBox.Show("Problem getting infomations through http request, Check internet connection. Error message : "+ex.Message , "HTTP request problem", MessageBoxButtons.RetryCancel);
+                var confirmIDs = MessageBox.Show("Problem getting infomations through http request, Check internet connection. Error message : " + ex.Message, "HTTP request problem", MessageBoxButtons.RetryCancel);
                 if (confirmIDs == DialogResult.Retry)
                 {
                     await FindInfoLiveAsync();
                 }
-                return ["?","?"];
+                return ["?", "?"];
             }
             catch (TaskCanceledException ex)
             {
@@ -233,7 +242,7 @@ namespace AHAP_Manager
             }
             catch (Exception ex)
             {
-                var confirmIDs = MessageBox.Show("Problem getting infomations through http request : "+ex.Message, "HTTP request problem", MessageBoxButtons.RetryCancel);
+                var confirmIDs = MessageBox.Show("Problem getting infomations through http request : " + ex.Message, "HTTP request problem", MessageBoxButtons.RetryCancel);
                 if (confirmIDs == DialogResult.Retry)
                 {
                     await FindInfoLiveAsync();
@@ -273,7 +282,7 @@ namespace AHAP_Manager
                 //If we dont have tags at the right count => update tags
                 if (Settings.Default.list_RepoTagName.Count < version)
                 {
-                    
+
                     var tags = await github.Repository.GetAllTags(username, repo);
                     Settings.Default.list_RepoTagName.Clear();
                     for (int i = tags.Count - 1; i >= 0; i--) { Settings.Default.list_RepoTagName.Add(tags[i].Name); }// the Tags saved need update
@@ -291,7 +300,7 @@ namespace AHAP_Manager
             }
             catch (RateLimitExceededException eLimit)
             {
-                var confirmIDs = MessageBox.Show("Git Limit acess (" + eLimit.Limit + " request per hour) \n Next request available at "+eLimit.Reset.LocalDateTime+ " \n\n" +
+                var confirmIDs = MessageBox.Show("Git Limit acess (" + eLimit.Limit + " request per hour) \n Next request available at " + eLimit.Reset.LocalDateTime + " \n\n" +
                     " (you can check 'Info' to see if your version is setup)"
                     , "Git request Limit", MessageBoxButtons.OK);
                 return "";
@@ -302,7 +311,7 @@ namespace AHAP_Manager
                 if (maxRetry > 0)
                 {
                     var probDialog = MessageBox.Show("Problem when getting old version (" + version + ") of 'nextObjectNumber.txt' from github \n" +
-                        "check internet connection and retry (" + maxRetry + ") (git request remaining : "+github.GetLastApiInfo().RateLimit.Remaining+")"
+                        "check internet connection and retry (" + maxRetry + ") (git request remaining : " + github.GetLastApiInfo().RateLimit.Remaining + ")"
                             , "Git request problem", MessageBoxButtons.RetryCancel);
                     if (probDialog == DialogResult.Retry)
                     {
@@ -341,7 +350,7 @@ namespace AHAP_Manager
                     Settings.Default.list_Old_NextObjNum.Add("");
                 }
                 //16/15/14/13/12
-                int lastIndex = Settings.Default.list_Old_NextObjNum.Count-1;
+                int lastIndex = Settings.Default.list_Old_NextObjNum.Count - 1;
                 foreach (var NON in tmplist)
                 {
                     Settings.Default.list_Old_NextObjNum[lastIndex] = NON;
@@ -375,7 +384,7 @@ namespace AHAP_Manager
         #region Buttons
         private void e_button_Browser_Click(object sender, EventArgs e)
         {
-
+            e_button_OpenFolder.Enabled = false;
             e_button_Export.Enabled = false; fastLoaded = false; e_LoadSucess = false;
             e_label_Info_OnExportButtonClick.Text = "";
 
@@ -414,6 +423,7 @@ namespace AHAP_Manager
             string gameFolderPath = Directory.GetParent(e_oxzFilePath).Parent.FullName;
             string dataVersNumPath = gameFolderPath + "/dataVersionNumber.txt";
             e_TransitionPath = gameFolderPath + "/transitions/";
+            e_CategoriesPath = gameFolderPath + "/categories/";
             e_ExportPath = gameFolderPath + "/exports/";
             e_ObjectPath = gameFolderPath + "/objects/";
             e_SpritesPath = gameFolderPath + "/sprites/";
@@ -425,6 +435,10 @@ namespace AHAP_Manager
             if (!Directory.Exists(e_TransitionPath))
             {
                 CreateFatalErrorMessage("transitions folder do not exist, make sure to select the oxz file in the export folder"); return;
+            }
+            if (!Directory.Exists(e_CategoriesPath))
+            {
+                CreateFatalErrorMessage("categories folder do not exist, make sure to select the oxz file in the export folder"); return;
             }
             if (!Directory.Exists(e_ExportPath))
             {
@@ -491,7 +505,7 @@ namespace AHAP_Manager
 
                 if (e_listObjectsSettings[x] == null)
                 {
-                    
+
                     continue;
                 }
                 e_listObjSettingsClear.Add(e_listObjectsSettings[x]);
@@ -516,13 +530,14 @@ namespace AHAP_Manager
             e_SetLabel_NbObject(e_listObjSettingsClear.Count);
 
             e_SetErrorDecoration_OnTransitionListView(); // Need call this after transition list and transition list view are setup and after auto select
-
+            e_button_OpenFolder.Enabled = true;
             e_LoadSucess = true;
             FormLoading.CloseForm();
         }
         private void e_button_Export_Click(object sender, EventArgs e)
         {
             e_file_copy_number = 0;
+            e_catRef_copy_number = 0;
 
             string transitionExportFileName = e_oxzFileName + trtExtension;
 
@@ -531,6 +546,44 @@ namespace AHAP_Manager
             foreach (ObjectSettings o in e_ObjSelListView.Objects)
             {
                 selectedTraListIDs.Add(o.id.ToString());
+            }
+
+            // We check if any of the exported object have categories and we add it to his string
+            foreach (var file in Directory.GetFiles(e_CategoriesPath))
+            {
+                string fileName = Path.GetFileNameWithoutExtension(file);
+                if (fileName.Any(char.IsLetter)) continue;
+
+                string pID="";string pSet = "";int count = 0;
+                foreach (string l in File.ReadLines(file))
+                {
+                    if (count == 0)
+                    {
+                        pID += l.Split('=')[1];
+                        count++; continue;
+                    }
+                    if (count == 1)
+                    {
+                        pSet += l == "pattern" ? "0":"1";
+                        count++; continue;
+                    }
+                    if (count == 2) //Number of objects in this category
+                    {
+                        count++; continue;
+                    }
+                    for(int i=0;i< selectedTraListIDs.Count;i++)
+                    {
+                        var splitedLine = l.Split(' ');
+                        if (splitedLine[0] == selectedTraListIDs[i])
+                        {
+                            e_catRef_copy_number++;
+                            selectedTraListIDs[i] += ":" + pID + "=" + pSet;
+                            if (splitedLine.Length >= 2) selectedTraListIDs[i] += "!"+splitedLine[1]; // Add the proba value
+                            selectedTraListIDs[i] += "/";
+                        }
+                    }
+
+                }
             }
 
             if (fastLoaded) // All transitions 
@@ -545,7 +598,7 @@ namespace AHAP_Manager
                     }
                 }
             }
-            else // Only selected one
+            else // Only the selected one
             {
                 foreach (Transition t in e_TransListView.SelectedObjects)
                 {
@@ -556,7 +609,7 @@ namespace AHAP_Manager
 
             CreateTrtFile(selectedTraListPath, Path.Combine(e_ExportPath + transitionExportFileName), selectedTraListIDs);
 
-            e_label_Info_OnExportButtonClick.Text = "Sucess : " + e_file_copy_number + " transitions copy ";
+            e_label_Info_OnExportButtonClick.Text = "Sucess : " + e_file_copy_number + " transitions copy / "+ e_catRef_copy_number+" ref category";
 
         }
         #endregion
@@ -870,7 +923,7 @@ namespace AHAP_Manager
 
         #endregion
 
-      #region Import
+        #region Import
         private bool OpenFile(string filePath, string transitionFolderPath)
         {
             i_listOldIDs.Clear();
@@ -878,26 +931,37 @@ namespace AHAP_Manager
             i_transList_IdMiss.Clear();
             i_transList_AlreadyExist.Clear();
             i_transList_AlreadyExist_Selected.Clear();
+            i_listCategoriesReference.Clear();
             bool firstOfTheFile = true;
             int count = 0; string tmpTransitionFilePath = "";
             List<string> tmpFileContent = new List<string>();
             Transition tmpTransition = new Transition();
+            //List<Categories> i_listCategoriesReference = new List<Categories>();
 
             foreach (var line in File.ReadLines(filePath))
             {
                 if (firstOfTheFile)
                 {
-                    var tmp = line.Split(',');
+                    var oldList = line.Split(',');
                     #region Get Old IDs
-                    for (int i = 0; i < tmp.Length; i++)
+                    for (int i = 0; i < oldList.Length; i++)
                     {
+                        var splitedID = oldList[i].Split(':');
                         int tmpInt;
-                        if (!int.TryParse(tmp[i], out tmpInt))
+                        if (!int.TryParse(splitedID[0], out tmpInt))
                         {
                             CreateFatalErrorMessage(".trt File, first line problem", false);
                             return false;
                         }
                         i_listOldIDs.Add(tmpInt);
+                        if (splitedID.Length >= 2) // if the ID have categories to refer
+                        {
+                            var catList = splitedID[1].Split('/', StringSplitOptions.RemoveEmptyEntries);
+                            Categories cats = new Categories(catList);
+                            cats.ID = tmpInt;
+                            i_listCategoriesReference.Add(cats);
+                        }
+                        
                     }
                     #endregion
                     firstOfTheFile = false;
@@ -980,7 +1044,20 @@ namespace AHAP_Manager
                 }
 
             }
-            //return i_transitionsList;
+            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MAYBE NOT NEEDED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //put categories to add to the objects
+            foreach (var obj in i_listObjSettingsClear)
+            {
+                foreach (var cats in i_listCategoriesReference)
+                {
+                    if (obj.id == cats.ID)
+                    {
+                        obj.categories = cats;
+                    }
+                }
+            }
+            // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MAYBE NOT NEEDED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
             return true;
         }
         public void i_SetErrorDecoration_OnTransitionListView()
@@ -1029,7 +1106,7 @@ namespace AHAP_Manager
             }
             return false;
         }
-       #region Buttons
+        #region Buttons
         private void i_button_Browser_Click(object sender, EventArgs e)
         {
             i_button_Import.Enabled = false;
@@ -1063,6 +1140,7 @@ namespace AHAP_Manager
             #region Check Folder Acess
             string gameFolderPath = Directory.GetParent(trtFilePath).Parent.FullName;
             i_TransitionPath = gameFolderPath + "/transitions/";
+            i_CategoriesPath = gameFolderPath + "/categories/";
             i_ObjectFolderPath = gameFolderPath + "/objects/";
             i_SprFolderPath = gameFolderPath + "/sprites/";
             i_Import_AddFolderPath = gameFolderPath + "/import_add/";
@@ -1071,6 +1149,10 @@ namespace AHAP_Manager
             if (!Directory.Exists(i_TransitionPath))
             {
                 CreateFatalErrorMessage("transitions Folder dont exist"); return;
+            }
+            if (!Directory.Exists(i_CategoriesPath))
+            {
+                CreateFatalErrorMessage("categories Folder dont exist"); return;
             }
             if (!Directory.Exists(i_ObjectFolderPath))
             {
@@ -1154,11 +1236,15 @@ namespace AHAP_Manager
             // we modify old IDs directly when we open file
             if (!OpenFile(trtFilePath, i_TransitionPath)) return;
 
-            //i_TransLV.SetObjects(i_transitionsList);
             i_TransListView.SetObjects(i_transList);
 
-            //i_TransListView.SelectAll();
             i_label_NbTrImported.Text = i_transList.Count + "/" + i_transList.Count; //all selected
+
+            foreach (var cats in i_listCategoriesReference)
+            {
+
+            }
+
 
             //check if any transition has same file name that an already existing one ( no need check same file content)
             for (int i = 0; i < i_transList.Count; i++)
@@ -1187,6 +1273,64 @@ namespace AHAP_Manager
 
             i_newTr_num = 0; i_replaceTr_num = 0; i_PassedTr_num = 0;
 
+            #region Add Categories reference
+            foreach (var cats in i_listCategoriesReference) // for each Object that have categories
+            {
+                foreach (var cat in cats.categories) // for each category 
+                {
+                    foreach (var file in Directory.GetFiles(i_CategoriesPath)) // we search each file with the ID
+                    {
+                        string fileName = Path.GetFileNameWithoutExtension(file);
+                        if (!int.TryParse(fileName, out int id)) continue;
+                        if (cat.IDParent == id)
+                        {
+                            string[] lines = File.ReadAllLines(file);
+
+                            if (lines.Length < 3) continue; //problem file
+
+                            //check if the id does not already exist
+                            bool pass = false;
+                            for (int i = 3; i < lines.Length; i++)
+                            {
+                                if (lines[i].StartsWith(cats.ID.ToString()))
+                                {
+                                    pass = true;
+                                    break;
+                                }
+                            }
+                            if (pass) continue;
+
+                            // Change numObjects on third line cause we add a line
+                            if (lines[2].Contains("numObjects="))
+                            {
+
+                                string prefix = "numObjects=";
+                                string line = lines[2];
+                                int startIndex = line.IndexOf(prefix) + prefix.Length;
+
+                                if (int.TryParse(line.Substring(startIndex), out int numObjects))
+                                {
+                                    numObjects++;
+                                    lines[2] = $"{prefix}{numObjects}";
+                                }
+                            }
+                            
+
+                            // Add new line at the end
+                            using (StreamWriter writer = new StreamWriter(file))
+                            {
+                                foreach (string line in lines)
+                                {
+                                    writer.WriteLine(line);
+                                }
+                                string proba = cat.patern ? "" : " " + cat.probValue;
+                                writer.WriteLine(cats.ID+proba);
+                            }
+                        }
+                    }
+                }
+            }
+            #endregion
             foreach (Transition t in i_TransListView.SelectedObjects)
             {
                 File.WriteAllLines(t.filePath, t.fileContent);
@@ -1214,11 +1358,12 @@ namespace AHAP_Manager
             i_label_Info_OnImportButtonClick.ForeColor = Color.GreenYellow;
             i_label_Info_OnImportButtonClick.Text = i_newTr_num + " new / "
                 + i_replaceTr_num + " replace / "
-                + i_PassedTr_num + " passed";
+                + i_PassedTr_num + " passed / "
+                + i_listCategoriesReference.Count +" ref Cat.";
         }
         #endregion
 
-       #region Checkbox
+        #region Checkbox
         private void i_checkBox_DeleteOldFiles_CheckedChanged(object sender, EventArgs e)
         {
             //Save in datasettings *NM
@@ -1434,6 +1579,7 @@ namespace AHAP_Manager
         #endregion
 
         #region Global Method
+        
         private ObjectSettings[]? LoadAllObjects(string ObjFolderPath, string sprFolderPath, bool isExportTab)//, List<ObjectSettings> listObjSettingClear)
         {
             string nextObjectNumberPath = ObjFolderPath + "nextObjectNumber.txt";
@@ -1542,25 +1688,30 @@ namespace AHAP_Manager
                     }
                     if (line.StartsWith("color="))
                     {
+                        if (line == "color=1.000000,1.000000,1.000000") continue; //should happen a lot so is better to not parse and all for nothing
                         string[] c = line.Split('=')[1].Split(',');
-                        float h; float s; float v;
-                        if (!float.TryParse(c[0], NumberStyles.Number, CultureInfo.InvariantCulture, out v))
+                        float r; float g; float b;
+                        if (!float.TryParse(c[0], NumberStyles.Number, CultureInfo.InvariantCulture, out r))
                         {
                             CreateFatalErrorMessage("During objects loading : Couldnt parse the color hue at line : " + line, isExportTab);
                             return null;
                         }
-                        if (!float.TryParse(c[1], NumberStyles.Number, CultureInfo.InvariantCulture, out s))
+                        if (!float.TryParse(c[1], NumberStyles.Number, CultureInfo.InvariantCulture, out g))
                         {
                             CreateFatalErrorMessage("During objects loading : Couldnt parse the color saturation at line : " + line, isExportTab);
                             return null;
                         }
-                        if (!float.TryParse(c[2], NumberStyles.Number, CultureInfo.InvariantCulture, out h))
+                        if (!float.TryParse(c[2], NumberStyles.Number, CultureInfo.InvariantCulture, out b))
                         {
                             CreateFatalErrorMessage("During objects loading : Couldnt parse the color value at line : " + line, isExportTab);
                             return null;
                         }
+                        if (objectSettings.fullName == "Female011 C") Debug.WriteLine("FIRST : "+r);
+                        if (objectSettings.fullName == "Female011 C") Debug.WriteLine("FIRST : "+g);
+                        if (objectSettings.fullName == "Female011 C") Debug.WriteLine("FIRST : "+b);
+                        int rr = (int)(r*255); int gg = (int)(g*255);int bb = (int)(b*255);
+                        spriteSettings.color = Color.FromArgb(255,rr, gg, bb);
 
-                        spriteSettings.color = ColorFromHSV(h, s, v);
                         continue;
                     }
                     if (line.StartsWith("pixHeight="))
@@ -1802,6 +1953,7 @@ namespace AHAP_Manager
         #endregion
 
         #region Global Static Method
+        
         public static void ColorToHSV(Color color, out float hue, out float saturation, out float value)
         {
             int max = Math.Max(color.R, Math.Max(color.G, color.B));
@@ -1811,36 +1963,48 @@ namespace AHAP_Manager
             saturation = (max == 0) ? 0 : 1f - (1f * min / max);
             value = max / 255f;
         }
-        public static Color ColorFromHSV(float hue, float saturation, float value)
+        static Color ColorFromHSV(float hue, float saturation, float value, int alpha)
         {
             int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
-            double f = hue / 60 - Math.Floor(hue / 60);
+            float f = hue / 60 - (float)Math.Floor(hue / 60);
 
-            value = value * 255;
+            value *= 255;
             int v = Convert.ToInt32(value);
             int p = Convert.ToInt32(value * (1 - saturation));
             int q = Convert.ToInt32(value * (1 - f * saturation));
             int t = Convert.ToInt32(value * (1 - (1 - f) * saturation));
 
-            if (hi == 0)
-                return Color.FromArgb(255, v, t, p);
-            else if (hi == 1)
-                return Color.FromArgb(255, q, v, p);
-            else if (hi == 2)
-                return Color.FromArgb(255, p, v, t);
-            else if (hi == 3)
-                return Color.FromArgb(255, p, q, v);
-            else if (hi == 4)
-                return Color.FromArgb(255, t, p, v);
-            else
-                return Color.FromArgb(255, v, p, q);
+            switch (hi)
+            {
+                case 0:
+                    return Color.FromArgb(alpha, v, t, p);
+                case 1:
+                    return Color.FromArgb(alpha, q, v, p);
+                case 2:
+                    return Color.FromArgb(alpha, p, v, t);
+                case 3:
+                    return Color.FromArgb(alpha, p, q, v);
+                case 4:
+                    return Color.FromArgb(alpha, t, p, v);
+                default:
+                    return Color.FromArgb(alpha, v, p, q);
+            }
         }
-        public static Color Colorize(Color baseColor, Color colorizeColor, float amount)
+        public static float Lerp(float a, float b, float t)
         {
-            byte r = (byte)(baseColor.R + colorizeColor.R * (1 - amount));
-            byte g = (byte)(baseColor.G + colorizeColor.G * (1 - amount));
-            byte b = (byte)(baseColor.B + colorizeColor.B * (1 - amount));
-            return Color.FromArgb(baseColor.A, r, g, b);
+            return a + (b - a) * t;
+        }
+        public static Color LerpColor(Color startColor, Color endColor, float t)
+        {
+            // Clamp t between 0 and 1
+            t = Math.Clamp(t, 0.0f, 1.0f);
+
+            int r = (int)(startColor.R + (endColor.R - startColor.R) * t);
+            int g = (int)(startColor.G + (endColor.G - startColor.G) * t);
+            int b = (int)(startColor.B + (endColor.B - startColor.B) * t);
+            int a = (int)(startColor.A + (endColor.A - startColor.A) * t);
+
+            return Color.FromArgb(a, r, g, b);
         }
         public static string TimeConverter(int seconds)
         {
@@ -1919,6 +2083,36 @@ namespace AHAP_Manager
 
         #endregion
 
+        public class Categories
+        {
+            /// <summary>
+            /// The ID that contain all this categories
+            /// </summary>
+            public int ID;
+            public List<Category> categories = new List<Category>(); 
+            public Categories(string[] list)
+            {
+                foreach (var cat in list)
+                {
+                    categories.Add(new Category(cat));
+                }
+            }
+        }
+        public class Category
+        {
+            public int IDParent;
+            public bool patern;
+            public string probValue;
+            public Category(string cat)
+            {
+                var splitCat = cat.Split('=');
+                int.TryParse(splitCat[0],out IDParent);
+                var splitedPatern = splitCat[1].Split('!');
+                patern = splitedPatern[0] == "0" ? true : false;
+                if (splitedPatern.Length >= 2)
+                    probValue = splitedPatern[1];
+            }
+        }
         public class ObjectSettings
         {
             #region ListViewSettings
@@ -1942,6 +2136,7 @@ namespace AHAP_Manager
             public bool idNotFind = false;
             #endregion
 
+            public Categories? categories = null;
             public int id;
             public string fullName;
             /*public string subName
@@ -1960,95 +2155,31 @@ namespace AHAP_Manager
             public Bitmap objBmp32;
             public void MergeListOfSprites()
             {
-                if (listSprites == null)
-                {
-                    return;
-                }
-
+                if (listSprites == null) return;
+                
                 #region Color sprites
-                /*
                 for (int i = 0; i < listSprites.Count; i++)
                 {
-                    if (listSprites[i].color == Color.Black) continue;
-                    using (var g = Graphics.FromImage(listSprites[i].bm))
-                    {
-                        for (int a = 0; a < listSprites[i].bm.Width;a++)
-                        {
-                            for (int b = 0; b < listSprites[i].bm.Height; b++)
-                            {
-                                listSprites[i].bm.SetPixel(a,b, Colorize(listSprites[i].bm.GetPixel(a, b), listSprites[i].color, 0.5f));
-                            }
-                        }
-                        g.DrawImage(listSprites[i].bm, 0, 0);
-                    }
+                    if (listSprites[i].color == Color.White) continue;
+                    listSprites[i].bm = listSprites[i].bm.Tint(listSprites[i].color);
                 }
-                */
+                
                 #endregion
 
                 #region Rotate each sprites
+
                 for (int i = 0; i < listSprites.Count; i++)
                 {
-
-                    float tmpRot = listSprites[i].rot % 1f;
-                    Bitmap bmRotated;
-                    //int newWidth=0;
-                    //int newHeight=0;
-                    /*if (tmpRot!=0f) {
-                        
-                        /*if ((tmpRot > 0f && tmpRot < 0.25f) || (tmpRot > 0.5f && tmpRot < 0.75f))
-                        {
-                            newWidth = (int)Math.Abs((listSprites[i].bm.Width * Math.Cos(tmpRot)) + (int)(listSprites[i].bm.Height * Math.Sin(tmpRot)));
-                            newHeight = (int)Math.Abs((listSprites[i].bm.Width * Math.Sin(tmpRot)) + (int)(listSprites[i].bm.Height * Math.Cos(tmpRot)));
-                        }
-                        else
-                        {
-                            newWidth = (int)Math.Abs((listSprites[i].bm.Height * Math.Cos(tmpRot)) + (int)(listSprites[i].bm.Width * Math.Sin(tmpRot)));
-                            newHeight = (int)Math.Abs((listSprites[i].bm.Height * Math.Sin(tmpRot)) + (int)(listSprites[i].bm.Width * Math.Cos(tmpRot)));
-                        }
-                        bmRotated = new Bitmap(newWidth, newHeight);
-                    }
-                    else
-                    {
-                        bmRotated = new Bitmap(listSprites[i].bm.Width, listSprites[i].bm.Height);
-                    }*/
-                    bmRotated = new Bitmap(listSprites[i].bm.Width, listSprites[i].bm.Height);
-
-                    using (var g = Graphics.FromImage(bmRotated))
-                    {
-
-                        float moveX = listSprites[i].bm.Width / 2f + listSprites[i].anchor.X;
-                        float moveY = listSprites[i].bm.Height / 2f + listSprites[i].anchor.Y;
-                        g.TranslateTransform(moveX, moveY);
-                        g.RotateTransform(listSprites[i].rot * 360f);
-
-                        g.TranslateTransform(-moveX, -moveY);
-
-
-                        /*if (tmpRot != 0f)
-                        {
-                            g.DrawImage(listSprites[i].bm, 0, 0, newWidth, newHeight);
-                        }
-                        else
-                        {
-                            g.DrawImage(listSprites[i].bm, 0, 0);
-                        }*/
-                        g.DrawImage(listSprites[i].bm, 0, 0);
-
-                        //g.ResetTransform();
-                    }
-
-                    listSprites[i].bm = bmRotated;
+                    listSprites[i].bm = listSprites[i].bm.RotateBitmap(listSprites[i].rot*360f);
                 }
                 #endregion
 
                 #region Flip
-                for (int i = 0; i < listSprites.Count; i++)
+                foreach (var sprite in listSprites)
                 {
-                    using (var g = Graphics.FromImage(listSprites[i].bm))
+                    if (sprite.hFlip)
                     {
-                        if (listSprites[i].hFlip) listSprites[i].bm.RotateFlip(RotateFlipType.RotateNoneFlipX);
-
-                        g.DrawImage(listSprites[i].bm, 0, 0);
+                        sprite.bm.RotateFlip(RotateFlipType.RotateNoneFlipX);
                     }
                 }
                 // Get max width and height of the sprites
@@ -2078,40 +2209,39 @@ namespace AHAP_Manager
 
                 #endregion
 
-                #region Size object
-                int width = 0; int height = 0;
+                #region Get Largest Size
+                int maxWidth = 0;
+                int maxHeight = 0;
 
-                for (int a = 0; a < listSprites.Count; a++)
+                foreach (var sprite in listSprites)
                 {
-                    int tmpWidth = (Math.Abs(listSprites[a].pos.X) + listSprites[a].bm.Width / 2 + Math.Abs(listSprites[a].anchor.X)) * 2;
-                    int tmpHeight = (Math.Abs(listSprites[a].pos.Y) + listSprites[a].bm.Height / 2 + Math.Abs(listSprites[a].anchor.Y)) * 2;
-                    width = tmpWidth > width ? tmpWidth : width;
-                    height = tmpHeight > height ? tmpHeight : height;
+                    int tmpWidth = (Math.Abs(sprite.pos.X) + sprite.bm.Width / 2 + Math.Abs(sprite.anchor.X)) * 2;
+                    int tmpHeight = (Math.Abs(sprite.pos.Y) + sprite.bm.Height / 2 + Math.Abs(sprite.anchor.Y)) * 2;
+
+                    if (tmpWidth > maxWidth) maxWidth = tmpWidth;
+                    if (tmpHeight > maxHeight) maxHeight = tmpHeight;
                 }
 
-                if (height > width) width = height; else height = width;
+                int dimension = Math.Max(maxWidth, maxHeight);
 
                 #endregion
 
                 #region Merge sprites
 
-                //Debug.WriteLine("width : "+width);
-                //Debug.WriteLine("height : "+height);
-                objBmp = new Bitmap(width, height);
-                //objBmp = new Bitmap(300, 300);
+                objBmp = new Bitmap(dimension, dimension);
 
                 using (var g = Graphics.FromImage(objBmp))
                 {
-                    for (int i = 0; i < listSprites.Count; i++) //for (int i= listSprites.Count-1; i>=0;i--)
+                    foreach (var sprite in listSprites)
                     {
-                        int x = listSprites[i].pos.X; int y = listSprites[i].pos.Y;
-                        y = objBmp.Height / 2 - y; // Cause its draw from upper left and y is the move from center
-                        int moveX = objBmp.Width / 2 - listSprites[i].bm.Width / 2 - listSprites[i].anchor.X;
-                        int moveY = -listSprites[i].bm.Height / 2 - listSprites[i].anchor.Y;
+                        int x = sprite.pos.X;
+                        int y = objBmp.Height / 2 - sprite.pos.Y; // Adjust y position from center
 
-                        RectangleF srcRect = new RectangleF(0F, 0F, listSprites[i].bm.Width, listSprites[i].bm.Height);
-                        GraphicsUnit units = GraphicsUnit.Pixel;
-                        g.DrawImage(listSprites[i].bm, x + moveX, y + moveY, srcRect, units);
+                        int moveX = objBmp.Width / 2 - sprite.bm.Width / 2 - sprite.anchor.X;
+                        int moveY = -sprite.bm.Height / 2 - sprite.anchor.Y;
+
+                        RectangleF srcRect = new RectangleF(0F, 0F, sprite.bm.Width, sprite.bm.Height);
+                        g.DrawImage(sprite.bm, x + moveX, y + moveY, srcRect, GraphicsUnit.Pixel);
                     }
                 }
                 #endregion
@@ -2129,7 +2259,7 @@ namespace AHAP_Manager
             public bool hFlip;
             public Point anchor;
             public Bitmap bm;
-            public Color color;
+            public Color color = Color.White;
         }
         public class Transition
         {
@@ -2702,6 +2832,72 @@ namespace AHAP_Manager
             public Form1? form1;
             public bool export;
 
+            /*private OLVListSubItem? hoveredSubItem = null;
+            private HoverPanel hoverPanel;
+            public CustomTransitionsListView()
+            {
+                this.OwnerDraw = true;
+                this.FullRowSelect = true;
+
+                hoverPanel = new HoverPanel(this);
+
+                this.MouseMove += CustomObjectListView_MouseMove;
+                this.MouseLeave += CustomObjectListView_MouseLeave;
+            }
+
+            private void CustomObjectListView_MouseMove(object sender, MouseEventArgs e)
+            {
+                var hitInfo = this.OlvHitTest(e.X, e.Y);
+
+                if (hitInfo.SubItem != null && hitInfo.SubItem != hoveredSubItem)
+                {
+                    hoveredSubItem = hitInfo.SubItem;
+                    ShowHoverPanel(hitInfo.SubItem.Bounds.Location);
+                    this.Invalidate();
+                }
+                else if (hitInfo.SubItem == null && hoveredSubItem != null)
+                {
+                    hoveredSubItem = null;
+                    hoverPanel.HideHoverPanel();
+                    this.Invalidate();
+                }
+            }
+
+            private void CustomObjectListView_MouseLeave(object sender, EventArgs e)
+            {
+                hoveredSubItem = null;
+                hoverPanel.HideHoverPanel();
+                this.Invalidate();
+            }
+            private void ShowHoverPanel(Point location)
+            {
+                hoverPanel.ShowHoverPanel(location);
+            }
+
+            protected override void OnDrawSubItem(DrawListViewSubItemEventArgs e)
+            {
+                if (e.SubItem == hoveredSubItem)
+                {
+                    // Agrandir la cellule
+                    Rectangle enlargedBounds = new Rectangle(e.Bounds.X, e.Bounds.Y, e.Bounds.Width + 10, e.Bounds.Height + 10);
+                    e.Graphics.FillRectangle(Brushes.LightYellow, enlargedBounds);
+                    e.Graphics.DrawRectangle(Pens.Black, enlargedBounds);
+
+                    if (e.SubItem.Tag is Transition trans)
+                    {
+                        e.Graphics.DrawImage(trans.GetObjectSettings(e.ColumnIndex).objBmp64, enlargedBounds);
+                    }
+                    else
+                    {
+                        e.Graphics.DrawString(e.SubItem.Text, e.Item.Font, Brushes.Black, enlargedBounds);
+                    }
+                }
+                else
+                {
+                    base.OnDrawSubItem(e);
+                }
+            }*/
+
             protected override void OnMouseUp(MouseEventArgs e)
             {
                 base.OnMouseUp(e);
@@ -2755,6 +2951,7 @@ namespace AHAP_Manager
                         panelOverview.Visible = false;
                         return base.HandleMouseMove(ref m);
                     }
+                    //hoveredSubItem = hitInfo.SubItem;
                     actualRowHover = hitInfo.RowIndex;
                     actualColumnHover = hitInfo.ColumnIndex;
                     ObjectSettings? obj = ((Transition)hitInfo.RowObject).GetObjectSettings(hitInfo.ColumnIndex);
@@ -2767,6 +2964,7 @@ namespace AHAP_Manager
 
                     //int xitem = hitInfo.SubItem.Bounds.Location.X;
                     //int yitem = hitInfo.SubItem.Bounds.Location.Y;
+                    
                     int xmove = hitInfo.SubItem.Bounds.Location.X - panelOverview.Width / 2 + hitInfo.SubItem.Bounds.Width / 2 + Parent.Left;
                     int ymove = hitInfo.SubItem.Bounds.Location.Y - panelOverview.Height + Parent.Top;
                     panelOverview.Location = new Point(xmove, ymove); //*NM
@@ -2786,7 +2984,7 @@ namespace AHAP_Manager
                         if (sName.Length > 1) labelSubName.Text = sName[1]; else labelSubName.Text = "";
                         labelID.Text = obj.id.ToString();
                     }
-
+                    //this.Invalidate();
                 }
 
                 return base.HandleMouseMove(ref m);
@@ -2945,6 +3143,52 @@ namespace AHAP_Manager
 
         }
 
+
+        public class HoverPanel : Panel
+        {
+            private Control parentControl;
+
+            public HoverPanel(Control parentControl)
+            {
+                this.parentControl = parentControl;
+                this.BackColor = Color.LightYellow;
+                this.Visible = false;
+                this.Size = new Size(200, 100); // Définir la taille du panneau selon vos besoins
+                this.BorderStyle = BorderStyle.FixedSingle; // Ajouter une bordure si nécessaire
+                this.parentControl.Controls.Add(this);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+            }
+
+            public void ShowHoverPanel(Point location)
+            {
+                // Calculez les coordonnées de la cellule centrée
+                int panelX = location.X - this.Width / 2;
+                int panelY = location.Y - this.Height;
+
+                // Assurez-vous que le panneau reste visible à l'intérieur du parent
+                panelX = Math.Max(0, Math.Min(panelX, parentControl.ClientSize.Width - this.Width));
+                panelY = Math.Max(0, Math.Min(panelY, parentControl.ClientSize.Height - this.Height));
+
+                // Convertissez les coordonnées de la cellule centrée en coordonnées du parent du parent
+                Point screenLocation = parentControl.PointToScreen(new Point(panelX, panelY));
+                Point parentLocation = parentControl.PointToClient(screenLocation);
+
+                // Positionnez le panneau dans le parent du parent
+                this.Location = parentLocation;
+                this.Visible = true;
+            }
+
+            public void HideHoverPanel()
+            {
+                this.Visible = false;
+            }
+        }
+
+
         private void checkBox2_CheckedChanged(object sender, EventArgs e)
         {
             if (checkBox2.Checked)
@@ -2972,6 +3216,11 @@ namespace AHAP_Manager
         {
             Settings.Default.i_DeleteAllFile = i_checkBox_DeleteOldFiles.Checked;
             Settings.Default.Save();
+        }
+
+        private void e_button_OpenFolder_Click(object sender, EventArgs e)
+        {
+            //if(Directory.Exists(e_ExportPath)) Process.Start( "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Another Hour Another Planet_EDITOR_V11_Bamboo - Copie (3)/exports");
         }
     }
 }
