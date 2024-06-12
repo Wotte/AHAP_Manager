@@ -25,3 +25,11 @@ AHAP_Manager is a application that help you import/export transitions from Anoth
 - Transitions that already exist appear in yellow.
 - You can select/deselect any transition except the red one.
 - Clicking 'Import' button will create all new transitions selected and replace all yellow transition, in 'transitions' folder.
+
+
+## Linux
+
+This application cannot works with linux because i am using "Windows Form". \n
+I made a simple console application to export a .trt file, here : \n
+https://github.com/Wotte/Quick_Transitions/releases
+(There is a windows version too for the people who love console)
